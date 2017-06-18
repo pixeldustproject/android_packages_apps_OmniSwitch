@@ -56,6 +56,7 @@ public class SwitchService extends Service {
     private static SwitchConfiguration mConfiguration;
     private static int mUserId = -1;
     private Set<String> mPrefKeyFilter = new HashSet<String>();
+
     private static boolean mIsRunning;
     private static boolean mCommitSuicide;
 
@@ -94,6 +95,8 @@ public class SwitchService extends Service {
 
             mReceiver = new RecentsReceiver();
             IntentFilter filter = new IntentFilter();
+            filter.addAction(RecentsReceiver.ACTION_SHOW_OVERLAY);
+            filter.addAction(RecentsReceiver.ACTION_HIDE_OVERLAY);
             filter.addAction(RecentsReceiver.ACTION_HANDLE_HIDE);
             filter.addAction(RecentsReceiver.ACTION_HANDLE_SHOW);
             filter.addAction(Intent.ACTION_USER_SWITCHED);
@@ -163,12 +166,20 @@ public class SwitchService extends Service {
     }
 
     public static class RecentsReceiver extends BroadcastReceiver {
+        public static final String ACTION_SHOW_OVERLAY = "org.omnirom.omniswitch.ACTION_SHOW_OVERLAY";
+        public static final String ACTION_HIDE_OVERLAY = "org.omnirom.omniswitch.ACTION_HIDE_OVERLAY";
         public static final String ACTION_HANDLE_HIDE = "org.omnirom.omniswitch.ACTION_HANDLE_HIDE";
         public static final String ACTION_HANDLE_SHOW = "org.omnirom.omniswitch.ACTION_HANDLE_SHOW";
         public static final String ACTION_TOGGLE_OVERLAY = "org.omnirom.omniswitch.ACTION_TOGGLE_OVERLAY";
-        public static final String ACTION_TOGGLE_OVERLAY2 = "org.omnirom.omniswitch.ACTION_TOGGLE_OVERLAY2";
         public static final String ACTION_RESTORE_HOME_STACK = "org.omnirom.omniswitch.ACTION_RESTORE_HOME_STACK";
-        public static final String ACTION_PRELOAD_TASKS = "org.omnirom.omniswitch.ACTION_PRELOAD_TASKS";
+
+        private void show(Context context) {
+            mManager.show();
+        }
+
+        private void hide() {
+            mManager.hide(false);
+        }
 
         @Override
         public void onReceive(final Context context, Intent intent) {
@@ -177,7 +188,21 @@ public class SwitchService extends Service {
                 if(DEBUG){
                     Log.d(TAG, "onReceive " + action);
                 }
-                if (ACTION_HANDLE_SHOW.equals(action)){
+                if (ACTION_SHOW_OVERLAY.equals(action)) {
+                    if (!mManager.isShowing()) {
+                        if (DEBUG){
+                            Log.d(TAG, "ACTION_SHOW_OVERLAY " + System.currentTimeMillis());
+                        }
+                        show(context);
+                    }
+                } else if (ACTION_HIDE_OVERLAY.equals(action)) {
+                    if (mManager.isShowing()) {
+                        if (DEBUG){
+                            Log.d(TAG, "ACTION_HIDE_OVERLAY " + System.currentTimeMillis());
+                        }
+                        hide();
+                    }
+                } else if (ACTION_HANDLE_SHOW.equals(action)){
                     if (mConfiguration.mDragHandleShow){
                         mManager.getSwitchGestureView().show();
                     }
@@ -188,18 +213,9 @@ public class SwitchService extends Service {
                         Log.d(TAG, "ACTION_TOGGLE_OVERLAY " + System.currentTimeMillis());
                     }
                     if (mManager.isShowing()) {
-                        mManager.hide(false);
+                        hide();
                     } else {
-                        mManager.show();
-                    }
-                } else if (ACTION_TOGGLE_OVERLAY2.equals(action)) {
-                    if (DEBUG){
-                        Log.d(TAG, "ACTION_TOGGLE_OVERLAY2 " + System.currentTimeMillis());
-                    }
-                    if (mManager.isShowing()) {
-                        mManager.hide(false);
-                    } else {
-                        mManager.showPreloaded();
+                        show(context);
                     }
                 } else if (Intent.ACTION_USER_SWITCHED.equals(action)) {
                     int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, -1);
@@ -215,20 +231,8 @@ public class SwitchService extends Service {
                     Log.d(TAG, "ACTION_SHUTDOWN");
                     mManager.shutdownService();
                 } else if (ACTION_RESTORE_HOME_STACK.equals(action)) {
-                    if(DEBUG){
-                        Log.d(TAG, "ACTION_RESTORE_HOME_STACK");
-                    }
+                    Log.d(TAG, "ACTION_RESTORE_HOME_STACK");
                     mManager.restoreHomeStack();
-                } else if (ACTION_PRELOAD_TASKS.equals(action)) {
-                    if(DEBUG){
-                        Log.d(TAG, "ACTION_PRELOAD_TASKS " + System.currentTimeMillis());
-                    }
-                    if (!mManager.isShowing()) {
-                        mManager.beforePreloadTasks();
-                        RecentTasksLoader.getInstance(context).cancelLoadingTasks();
-                        RecentTasksLoader.getInstance(context).setSwitchManager(mManager);
-                        RecentTasksLoader.getInstance(context).preloadTasks();
-                    }
                 }
             } catch(Exception e) {
                 Log.e(TAG,"onReceive", e);
